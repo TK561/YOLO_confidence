@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+.venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# YOLO Models
+*.pt
+*.onnx
+*.engine
+*.tflite
+!yolov8n.pt  # Keep the default model
+
+# Output images
+*_yolo_detected_*.jpg
+*_yolo_detected_*.jpeg
+*_yolo_detected_*.png
+*_yolo_detected_*.bmp
+
+# Test images (optional - remove if you want to track test images)
+test_images/
+sample_images/
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Config files with sensitive data
+config.ini
+secrets.json

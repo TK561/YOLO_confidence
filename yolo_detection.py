@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import filedialog
 import os
 from datetime import datetime
+from config import *
 
 def select_images():
     """エクスプローラーから複数の画像ファイルを選択"""
@@ -98,13 +99,13 @@ def process_single_image(model, image_path, desktop_path):
         return False
     
     # YOLO推論を実行（NMSパラメータを明示的に設定）
-    results = model(image, conf=0.25, iou=0.45)
+    results = model(image, conf=CONFIDENCE_THRESHOLD, iou=IOU_THRESHOLD)
     
     # 結果を画像に描画
     annotated_image = image.copy()
     
     # クラスごとの色を定義（80クラス分のカラーパレット）
-    np.random.seed(42)  # 再現性のため固定シード
+    np.random.seed(RANDOM_SEED)  # 再現性のため固定シード
     colors = np.random.randint(0, 255, size=(80, 3), dtype=np.uint8)
     
     # デバッグ用：検出された物体の数を記録
@@ -126,10 +127,11 @@ def process_single_image(model, image_path, desktop_path):
                 class_name = model.names[class_id]
                 
                 # デバッグ：すべての検出結果の詳細を表示
-                print(f"  検出: {class_name}, 確信度: {confidence:.3f}, 位置: ({x1},{y1})-({x2},{y2})")
+                if DEBUG_MODE:
+                    print(f"  検出: {class_name}, 確信度: {confidence:.3f}, 位置: ({x1},{y1})-({x2},{y2})")
                 
-                # 確信度が0.25以上の場合のみ処理
-                if confidence >= 0.25:
+                # 確信度が闾値以上の場合のみ処理
+                if confidence >= CONFIDENCE_THRESHOLD:
                     # 検出結果をリストに追加
                     detections.append({
                         'box': (x1, y1, x2, y2),
@@ -145,8 +147,8 @@ def process_single_image(model, image_path, desktop_path):
         for j, det2 in enumerate(detections):
             if i != j:
                 iou = calculate_iou(det1['box'], det2['box'])
-                # IoUが0.8以上の場合は重複とみなす
-                if iou > 0.8:
+                # IoUが闾値以上の場合は重複とみなす
+                if iou > DUPLICATE_IOU_THRESHOLD:
                     # 確信度が低い方を重複として扱う
                     if det1['confidence'] < det2['confidence']:
                         is_duplicate = True
@@ -154,7 +156,8 @@ def process_single_image(model, image_path, desktop_path):
         if not is_duplicate:
             filtered_detections.append(det1)
     
-    print(f"  -> フィルタリング前: {len(detections)}個, フィルタリング後: {len(filtered_detections)}個")
+    if DEBUG_MODE:
+        print(f"  -> フィルタリング前: {len(detections)}個, フィルタリング後: {len(filtered_detections)}個")
     
     # フィルタリング後の検出結果を描画
     for det in filtered_detections:
@@ -168,15 +171,16 @@ def process_single_image(model, image_path, desktop_path):
         color = colors[class_id].tolist()
         
         # バウンディングボックスを描画
-        cv2.rectangle(annotated_image, (x1, y1), (x2, y2), color, 12)
-        print(f"  描画: {class_name} at ({x1},{y1})-({x2},{y2}) with color {color}")
+        cv2.rectangle(annotated_image, (x1, y1), (x2, y2), color, BOX_THICKNESS)
+        if DEBUG_MODE:
+            print(f"  描画: {class_name} at ({x1},{y1})-({x2},{y2}) with color {color}")
         
         # ラベルテキスト（クラス名と確信度）
         label = f"{class_name}: {confidence:.2f}"
         
         # ラベルの背景サイズを計算
         (text_width, text_height), baseline = cv2.getTextSize(
-            label, cv2.FONT_HERSHEY_SIMPLEX, 3.5, 6
+            label, cv2.FONT_HERSHEY_SIMPLEX, FONT_SIZE, FONT_THICKNESS
         )
         
         # ラベルの背景を描画
@@ -194,9 +198,9 @@ def process_single_image(model, image_path, desktop_path):
             label,
             (x1, y1 - baseline - 5),
             cv2.FONT_HERSHEY_SIMPLEX,
-            3.5,
+            FONT_SIZE,
             (255, 255, 255),
-            6
+            FONT_THICKNESS
         )
     
     # 出力ファイル名を生成（上書きを防ぐため連番付き）
@@ -216,14 +220,15 @@ def process_single_image(model, image_path, desktop_path):
         counter += 1
     
     # デバッグ：検出された物体の数を表示
-    print(f"  -> 70%以上の確信度で検出された物体: {detection_count}個")
-    
-    # 画像が正しく変更されているか確認
-    if detection_count > 0:
-        # 元画像と注釈付き画像の差分を確認
-        diff = cv2.absdiff(image, annotated_image)
-        diff_sum = np.sum(diff)
-        print(f"  -> 画像の差分合計: {diff_sum}")
+    if DEBUG_MODE:
+        print(f"  -> {CONFIDENCE_THRESHOLD*100:.0f}%以上の確信度で検出された物体: {detection_count}個")
+        
+        # 画像が正しく変更されているか確認
+        if detection_count > 0:
+            # 元画像と注釈付き画像の差分を確認
+            diff = cv2.absdiff(image, annotated_image)
+            diff_sum = np.sum(diff)
+            print(f"  -> 画像の差分合計: {diff_sum}")
     
     # 結果画像を保存
     success = cv2.imwrite(output_path, annotated_image)
@@ -245,11 +250,11 @@ def run_yolo_detection():
     
     print(f"{len(image_paths)}枚の画像が選択されました。")
     
-    # YOLOモデルを読み込み（YOLOv8n）
-    print("YOLOモデルを読み込んでいます...")
-    model = YOLO('yolov8n.pt')
+    # YOLOモデルを読み込み
+    print(f"YOLOモデルを読み込んでいます... ({MODEL_NAME})")
+    model = YOLO(MODEL_NAME)
     
-    desktop_path = r"C:\Users\filqo\OneDrive\Desktop"
+    desktop_path = OUTPUT_DIR
     
     # 各画像を処理
     success_count = 0
